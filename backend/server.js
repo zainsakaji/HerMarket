@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const twilio = require("twilio");
 const axios = require("axios");
-const Anthropic = require("@anthropic-ai/sdk");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { v4: uuidv4 } = require("uuid");
 const fs = require("fs");
 const path = require("path");
@@ -13,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const LISTINGS_FILE = path.join(__dirname, "listings.json");
 
 const SEED_LISTINGS = [
@@ -95,7 +95,8 @@ app.post("/webhook", async (req, res) => {
   console.log(`📱 Message from ${from}: "${body}" | Image: ${mediaUrl}`);
 
   try {
-    const messageContent = [];
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const parts = [];
 
     if (mediaUrl) {
       console.log("🖼 Downloading image from Twilio...");
@@ -108,14 +109,10 @@ app.post("/webhook", async (req, res) => {
       });
       const base64Image = Buffer.from(imageResponse.data).toString("base64");
       const contentType = imageResponse.headers["content-type"] || "image/jpeg";
-      messageContent.push({
-        type: "image",
-        source: { type: "base64", media_type: contentType, data: base64Image },
-      });
+      parts.push({ inlineData: { mimeType: contentType, data: base64Image } });
     }
 
-    messageContent.push({
-      type: "text",
+    parts.push({
       text: `You are a marketplace listing assistant for rural artisan women selling handmade goods globally.
 
 The seller sent this message: "${body || "No description provided"}"
@@ -131,17 +128,12 @@ Generate a product listing. Return ONLY this exact JSON with no markdown, no exp
   "sellerNote": "One warm sentence in first person from the seller about how they made this."
 }
 
-Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Home Decor, Food, Handmade, Organic, Silver, Cotton, Wool, Winter`,
+Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Home Decor, Food, Handmade, Organic, Silver, Cotton, Wool, Winter`
     });
 
-    console.log("🤖 Calling Claude API...");
-    const aiResponse = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: messageContent }],
-    });
-
-    const rawText = aiResponse.content.find((b) => b.type === "text")?.text || "";
+    console.log("🤖 Calling Gemini API...");
+    const result = await model.generateContent(parts);
+    const rawText = result.response.text();
     const clean = rawText.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
 
@@ -171,9 +163,7 @@ Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Hom
     );
   } catch (err) {
     console.error("❌ Error processing message:", err.message);
-    twiml.message(
-      "Sorry, something went wrong. Please try again! 🙏"
-    );
+    twiml.message("Sorry, something went wrong. Please try again! 🙏");
   }
 
   res.set("Content-Type", "text/xml");
