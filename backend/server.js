@@ -16,37 +16,31 @@ const LISTINGS_FILE = path.join(__dirname, "listings.json");
 
 const SEED_LISTINGS = [
   {
-    id: "1", approved: true, seller: "Priya Sharma", timestamp: new Date().toISOString(),
+    id: "1",
+    approved: true,
+    seller: "Priya Sharma",
+    timestamp: new Date().toISOString(),
     title: "Hand-Block Printed Cotton Scarf",
     description: "Crafted using century-old wooden stamps and natural indigo dye. Each piece carries the heritage of Rajasthan's artisan tradition.",
-    tags: ["Textiles", "Cotton", "Handmade"], price: 28, origin: "Jaipur, India",
+    tags: ["Textiles", "Cotton", "Handmade"],
+    price: 28,
+    origin: "Jaipur, India",
     sellerNote: "My mother taught me this craft — every stamp tells a story.",
-    image: "https://images.unsplash.com/photo-1617627143233-ab93a9b37a1e?w=600",
+    image: "https://images.unsplash.com/photo-1617627143233-ab93a9b37a1e?w=600"
   },
   {
-    id: "2", approved: true, seller: "Meena Devi", timestamp: new Date().toISOString(),
+    id: "2",
+    approved: true,
+    seller: "Meena Devi",
+    timestamp: new Date().toISOString(),
     title: "Embroidered Cushion Cover",
     description: "Dense mirror-work embroidery on ivory cotton. Takes 3 days per piece.",
-    tags: ["Embroidery", "Textiles", "Home Decor"], price: 22, origin: "Jaipur, India",
+    tags: ["Embroidery", "Textiles", "Home Decor"],
+    price: 22,
+    origin: "Jaipur, India",
     sellerNote: "I learned this stitch from my grandmother as a young girl.",
-    image: "https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=600",
-  },
-  {
-    id: "3", approved: true, seller: "Amina Wanjiku", timestamp: new Date().toISOString(),
-    title: "Hand-Woven Sisal Basket",
-    description: "Coiled sisal dyed with natural plant pigments. Each basket takes 2 weeks to complete.",
-    tags: ["Baskets", "Handmade", "Home Decor"], price: 35, origin: "Nairobi, Kenya",
-    sellerNote: "I harvest the sisal myself near our village.",
-    image: "https://images.unsplash.com/photo-1591561954557-26941169b49e?w=600",
-  },
-  {
-    id: "4", approved: true, seller: "Fatuma Osei", timestamp: new Date().toISOString(),
-    title: "Dried Spice Bundle",
-    description: "Sun-dried cardamom, cloves and cinnamon from Kenyan highland gardens. Intensely aromatic.",
-    tags: ["Spices", "Food", "Organic"], price: 14, origin: "Nairobi, Kenya",
-    sellerNote: "We dry these spices on our rooftop and bundle them by hand.",
-    image: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=600",
-  },
+    image: "https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=600"
+  }
 ];
 
 function readListings() {
@@ -64,8 +58,7 @@ function writeListings(listings) {
 app.get("/", (req, res) => res.json({ status: "HerMarket backend running ✅" }));
 
 app.get("/listings", (req, res) => {
-  const listings = readListings();
-  res.json(listings);
+  res.json(readListings());
 });
 
 app.post("/approve/:id", (req, res) => {
@@ -78,9 +71,8 @@ app.post("/approve/:id", (req, res) => {
 });
 
 app.delete("/listing/:id", (req, res) => {
-  const listings = readListings();
-  const filtered = listings.filter((l) => l.id !== req.params.id);
-  writeListings(filtered);
+  const listings = readListings().filter(l => l.id !== req.params.id);
+  writeListings(listings);
   res.json({ success: true });
 });
 
@@ -92,95 +84,74 @@ app.post("/webhook", async (req, res) => {
 
   console.log(`📱 Message from ${from}: "${body}" | Image: ${mediaUrl}`);
 
+  const systemPrompt = `
+You are a marketplace listing assistant for rural artisan women selling handmade goods globally.
+Return EXACT JSON in this format:
+{
+  "title": "short product title max 8 words",
+  "description": "Two compelling sentences highlighting craftsmanship and origin",
+  "tags": ["Tag1","Tag2","Tag3"],
+  "price": 25,
+  "origin": "Region, Country",
+  "sellerNote": "One warm sentence from seller in first person"
+}
+Tags must be chosen from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Home Decor, Food, Handmade, Organic, Silver, Cotton, Wool, Winter.
+`;
+
+  const userPrompt = `Seller message: "${body}"
+${mediaUrl ? "Product image: " + mediaUrl : "No image provided."}`;
+
   try {
-    // Download image and convert to base64
-    let base64Image = null;
-    let contentType = null;
+    let rawText;
 
-    if (mediaUrl) {
-      console.log("🖼 Downloading image from Twilio...");
-      const imageResponse = await axios.get(mediaUrl, {
-        responseType: "arraybuffer",
-        auth: {
-          username: process.env.TWILIO_ACCOUNT_SID,
-          password: process.env.TWILIO_AUTH_TOKEN,
-        },
-      });
-      base64Image = Buffer.from(imageResponse.data).toString("base64");
-      contentType = imageResponse.headers["content-type"] || "image/jpeg";
-    }
-
-    // Build OpenRouter message
-    const messages = [
+    const response = await axios.post(
+      "https://openrouter.ai/v1/chat/completions",
       {
-        role: "user",
-        content: base64Image ? [
-          {
-            type: "image_url",
-            image_url: { url: `data:${contentType};base64,${base64Image}` }
-          },
-          {
-            type: "text",
-            text: `You are a marketplace listing assistant for rural artisan women selling handmade goods globally.
-
-The seller sent this message: "${body || "No description provided"}"
-Analyze the product image carefully.
-
-Generate a product listing. Return ONLY this exact JSON with no markdown, no explanation:
-{
-  "title": "short product title max 8 words",
-  "description": "Two compelling sentences for international buyers that highlight craftsmanship and origin.",
-  "tags": ["Tag1", "Tag2", "Tag3"],
-  "price": 25,
-  "origin": "Region, Country",
-  "sellerNote": "One warm sentence in first person from the seller about how they made this."
-}
-
-Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Home Decor, Food, Handmade, Organic, Silver, Cotton, Wool, Winter`
-          }
-        ] : `You are a marketplace listing assistant for rural artisan women selling handmade goods globally.
-
-The seller sent this message: "${body || "No description provided"}"
-
-Generate a product listing. Return ONLY this exact JSON with no markdown, no explanation:
-{
-  "title": "short product title max 8 words",
-  "description": "Two compelling sentences for international buyers that highlight craftsmanship and origin.",
-  "tags": ["Tag1", "Tag2", "Tag3"],
-  "price": 25,
-  "origin": "Region, Country",
-  "sellerNote": "One warm sentence in first person from the seller about how they made this."
-}
-
-Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Home Decor, Food, Handmade, Organic, Silver, Cotton, Wool, Winter`
-      }
-    ];
-
-    console.log("🤖 Calling OpenRouter API...");
-    const aiResponse = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        model: "google/gemini-2.0-flash-exp:free",
-        messages,
+        model: "deepseek/deepseek-chat:free",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.7
       },
       {
         headers: {
           "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://hermarket.vercel.app",
-          "X-Title": "HerMarket"
+          "Content-Type": "application/json"
         }
       }
     );
 
-    const rawText = aiResponse.data.choices[0].message.content;
-    const clean = rawText.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
+    // Safe extraction
+    if (response.data && response.data.choices && response.data.choices.length > 0) {
+      rawText = response.data.choices[0].message.content;
+    } else {
+      console.warn("⚠️ OpenRouter response missing choices, using fallback");
+      rawText = JSON.stringify({
+        title: "Handmade Artisan Product",
+        description: body || "A beautiful handmade item crafted with care.",
+        tags: ["Handmade"],
+        price: 20,
+        origin: "Unknown",
+        sellerNote: "Made with love by hand."
+      });
+    }
 
-    // Save image as base64 data URL so frontend can display it
-    const imageDataUrl = base64Image 
-      ? `data:${contentType};base64,${base64Image}` 
-      : null;
+    // Parse AI output safely
+    let parsed;
+    try {
+      const clean = rawText.replace(/```json|```/g, "").trim();
+      parsed = JSON.parse(clean);
+    } catch (e) {
+      parsed = {
+        title: "Handmade Artisan Product",
+        description: body || "A beautiful handmade item crafted with care.",
+        tags: ["Handmade"],
+        price: 20,
+        origin: "Unknown",
+        sellerNote: "Made with love by hand."
+      };
+    }
 
     const newListing = {
       id: uuidv4(),
@@ -190,11 +161,11 @@ Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Hom
       price: parsed.price,
       origin: parsed.origin,
       sellerNote: parsed.sellerNote,
-      image: imageDataUrl,
+      image: mediaUrl || null,
       approved: false,
       seller: "WhatsApp Seller",
       phone: from,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     const listings = readListings();
@@ -206,8 +177,9 @@ Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Hom
     twiml.message(
       `✅ Your listing is created!\n\n*${newListing.title}*\n$${newListing.price} USD\n\n${newListing.description}\n\nIt'll go live on HerMarket once approved by our team. Thank you! 🌿`
     );
+
   } catch (err) {
-    console.error("❌ Error processing message:", err.message);
+    console.error("❌ OpenRouter call failed:", err.message);
     twiml.message("Sorry, something went wrong. Please try again! 🙏");
   }
 
