@@ -30,23 +30,7 @@ const SEED_LISTINGS = [
     tags: ["Embroidery", "Textiles", "Home Decor"], price: 22, origin: "Jaipur, India",
     sellerNote: "I learned this stitch from my grandmother as a young girl.",
     image: "https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=600",
-  },
-  {
-    id: "3", approved: true, seller: "Amina Wanjiku", timestamp: new Date().toISOString(),
-    title: "Hand-Woven Sisal Basket",
-    description: "Coiled sisal dyed with natural plant pigments. Each basket takes 2 weeks to complete.",
-    tags: ["Baskets", "Handmade", "Home Decor"], price: 35, origin: "Nairobi, Kenya",
-    sellerNote: "I harvest the sisal myself near our village.",
-    image: "https://images.unsplash.com/photo-1591561954557-26941169b49e?w=600",
-  },
-  {
-    id: "4", approved: true, seller: "Fatuma Osei", timestamp: new Date().toISOString(),
-    title: "Dried Spice Bundle",
-    description: "Sun-dried cardamom, cloves and cinnamon from Kenyan highland gardens. Intensely aromatic.",
-    tags: ["Spices", "Food", "Organic"], price: 14, origin: "Nairobi, Kenya",
-    sellerNote: "We dry these spices on our rooftop and bundle them by hand.",
-    image: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=600",
-  },
+  }
 ];
 
 function readListings() {
@@ -64,8 +48,7 @@ function writeListings(listings) {
 app.get("/", (req, res) => res.json({ status: "HerMarket backend running ✅" }));
 
 app.get("/listings", (req, res) => {
-  const listings = readListings();
-  res.json(listings);
+  res.json(readListings());
 });
 
 app.post("/approve/:id", (req, res) => {
@@ -78,9 +61,8 @@ app.post("/approve/:id", (req, res) => {
 });
 
 app.delete("/listing/:id", (req, res) => {
-  const listings = readListings();
-  const filtered = listings.filter((l) => l.id !== req.params.id);
-  writeListings(filtered);
+  const listings = readListings().filter((l) => l.id !== req.params.id);
+  writeListings(listings);
   res.json({ success: true });
 });
 
@@ -92,9 +74,7 @@ app.post("/webhook", async (req, res) => {
 
   console.log(`📱 Message from ${from}: "${body}" | Image: ${mediaUrl}`);
 
-  try {
-    // Prepare prompt
-    const prompt = `
+  const prompt = `
 You are a marketplace listing assistant for rural artisan women selling handmade goods globally.
 
 The seller sent this message: "${body || "No description provided"}"
@@ -113,50 +93,26 @@ Generate a product listing. Return ONLY this exact JSON:
 Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Home Decor, Food, Handmade, Organic, Silver, Cotton, Wool, Winter
 `;
 
-    // Call OpenRouter via axios
+  try {
     let rawText;
+    const response = await axios.post(
+      "https://openrouter.ai/v1/chat/completions",
+      {
+        model: "deepseek/deepseek-chat:free",
+        messages: [
+          { role: "user", content: mediaUrl ? `${prompt}\n\nImage URL: ${mediaUrl}` : prompt }
+        ]
+      },
+      {
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
 
-    if (mediaUrl) {
-      // For simplicity, we'll just include the image URL as text
-      rawText = (
-        await axios.post(
-          "https://openrouter.ai/api/v1/chat/completions",
-          {
-            model: "deepseek/deepseek-chat:free",
-            messages: [
-              {
-                role: "user",
-                content: `${prompt}\n\nImage URL: ${mediaUrl}`
-              }
-            ]
-          },
-          {
-            headers: {
-              "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              "Content-Type": "application/json"
-            }
-          }
-        )
-      ).data.choices[0].message.content;
-    } else {
-      rawText = (
-        await axios.post(
-          "https://openrouter.ai/api/v1/chat/completions",
-          {
-            model: "deepseek/deepseek-chat:free",
-            messages: [{ role: "user", content: prompt }]
-          },
-          {
-            headers: {
-              "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              "Content-Type": "application/json"
-            }
-          }
-        )
-      ).data.choices[0].message.content;
-    }
+    rawText = response.data.choices[0].message.content;
 
-    // Parse JSON safely
     let parsed;
     try {
       const clean = rawText.replace(/```json|```/g, "").trim();
@@ -173,7 +129,6 @@ Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Hom
       };
     }
 
-    // Save listing
     const newListing = {
       id: uuidv4(),
       title: parsed.title,
@@ -186,7 +141,7 @@ Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Hom
       approved: false,
       seller: "WhatsApp Seller",
       phone: from,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     const listings = readListings();
@@ -199,7 +154,7 @@ Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Hom
       `✅ Your listing is created!\n\n*${newListing.title}*\n$${newListing.price} USD\n\n${newListing.description}\n\nIt'll go live on HerMarket once approved by our team. Thank you! 🌿`
     );
   } catch (err) {
-    console.error("❌ Error processing message:", err.message);
+    console.error("❌ OpenRouter call failed:", err.message);
     twiml.message("Sorry, something went wrong. Please try again! 🙏");
   }
 
