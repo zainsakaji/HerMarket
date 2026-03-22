@@ -1,76 +1,202 @@
 # HerMarket 🌿
 
-**AI-powered cooperative marketplace for rural women artisans.**
+> AI-powered cooperative marketplace connecting rural women artisans directly to global buyers — no middlemen, fair prices, real impact.
 
-A full-stack application that enables rural women artisans to list handmade goods via WhatsApp, with AI-generated listings and a beautiful editorial marketplace frontend.
+## The Problem
 
-## Architecture
+Rural women in India, Bangladesh, Kenya, Nepal and beyond produce beautiful handmade goods — textiles, embroidery, baskets, spices, jewelry, clothing. But middlemen buy their products for almost nothing and resell for 10–50× the price in cities or online.
 
-- **Frontend**: React + Vite + Tailwind CSS (deployed via Lovable)
-- **Backend**: Node.js/Express (deploy on Railway)
-- **AI**: Claude API (Anthropic) for listing generation
-- **Messaging**: Twilio WhatsApp for seller onboarding
+The women already have the skills. They just lack:
+- Market access
+- Logistics coordination
+- Pricing knowledge
+- Digital literacy
 
-## Quick Start
+## The Solution
 
-### Frontend (Lovable)
+HerMarket removes every barrier between the artisan and the buyer using AI.
 
-The frontend runs in Lovable with these environment variables:
+A rural woman sends a **WhatsApp photo + description**. Our AI automatically:
+1. Generates a professional product listing
+2. Suggests a fair trade price
+3. Translates it for global buyers
+4. Publishes it to the marketplace after admin approval
 
-| Variable | Description |
+No e-commerce knowledge needed. No smartphone app. Just WhatsApp.
+
+---
+
+## How It Works
+```
+📱 Seller sends WhatsApp photo + description
+        ↓
+📡 Twilio receives the message
+        ↓
+🤖 AI analyzes image + generates listing
+        ↓
+💾 Saved as pending listing
+        ↓
+✅ Admin approves via dashboard
+        ↓
+🛍 Live on the marketplace
+        ↓
+💰 Revenue goes directly to the seller
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
 |---|---|
-| `VITE_BACKEND_URL` | Your Railway backend URL (e.g. `https://hermarket.up.railway.app`) |
-| `VITE_SANDBOX_CODE` | Twilio WhatsApp sandbox join code |
+| Frontend | React + Vite + Tailwind CSS |
+| Backend | Node.js + Express |
+| Messaging | Twilio WhatsApp API |
+| AI | OpenRouter API (Gemini 2.0 Flash) |
+| Frontend Hosting | Vercel |
+| Backend Hosting | Railway |
+| Storage | JSON file (listings.json) |
 
-### Backend (Railway)
+---
 
-1. **Create a Railway project** and connect this repo (or push `server.js`)
+## Project Structure
+```
+HerMarket/
+├── src/                    # React frontend
+│   ├── components/         # UI components
+│   ├── pages/              # Shop, Admin, Sell tabs
+│   └── main.tsx            # Entry point
+├── backend/
+│   ├── server.js           # Express backend + Twilio webhook
+│   └── package.json        # Backend dependencies
+├── public/                 # Static assets
+└── package.json            # Frontend dependencies
+```
 
-2. **Add environment variables** in Railway dashboard:
+---
+
+## Getting Started
+
+### Prerequisites
+- Node.js 20+
+- Twilio account
+- OpenRouter API key
+- Railway account (backend)
+- Vercel account (frontend)
+
+---
+
+### 1. Clone the repo
+```bash
+git clone https://github.com/zainsakaji/HerMarket.git
+cd HerMarket
+```
+
+---
+
+### 2. Set up the backend (Railway)
+
+1. Go to [railway.app](https://railway.app)
+2. Click **New Project** → **Deploy from GitHub**
+3. Select this repo
+4. Set **Root Directory** to `backend`
+5. Add environment variables (see below)
+6. Click **Generate Domain** and copy your Railway URL
+
+#### Backend Environment Variables
 
 | Variable | Description | Example |
 |---|---|---|
-| `TWILIO_ACCOUNT_SID` | Your Twilio Account SID | `ACxxxxxxxxxx` |
-| `TWILIO_AUTH_TOKEN` | Your Twilio Auth Token | `xxxxxxxxxx` |
-| `ANTHROPIC_API_KEY` | Anthropic API key | `sk-ant-xxxxxxxxxx` |
-| `TWILIO_WHATSAPP_NUMBER` | Your Twilio WhatsApp number | `whatsapp:+14155238886` |
-| `PORT` | Server port (Railway sets this automatically) | `3000` |
+| `TWILIO_ACCOUNT_SID` | From twilio.com/console | `ACxxxxxxxxxx` |
+| `TWILIO_AUTH_TOKEN` | From twilio.com/console | `xxxxxxxxxx` |
+| `TWILIO_WHATSAPP_NUMBER` | Your Twilio sandbox number | `whatsapp:+14155238886` |
+| `OPENROUTER_API_KEY` | From openrouter.ai | `sk-or-xxxxxxxxxx` |
+| `PORT` | Server port | `3000` |
 
-3. **Install dependencies** (Railway does this automatically):
+---
 
-```bash
-npm install express twilio @anthropic-ai/sdk axios cors dotenv uuid
+### 3. Connect Twilio WhatsApp Sandbox
+
+1. Go to [twilio.com/console](https://twilio.com/console)
+2. **Messaging → Try it out → Send a WhatsApp message**
+3. Connect your phone by sending the join code to `+1 415 523 8886`
+4. Go to **Sandbox Settings**
+5. Set **"When a message comes in"** to:
 ```
+https://your-app.up.railway.app/webhook
+```
+6. Method: **HTTP POST** → Save
 
-4. **Configure Twilio webhook**:
-   - Go to [Twilio Console](https://console.twilio.com/) → Messaging → WhatsApp Sandbox
-   - Set the webhook URL to: `https://your-railway-url.up.railway.app/webhook`
-   - Method: POST
+---
 
-5. **Deploy**: Railway auto-deploys on push.
+### 4. Set up the frontend (Vercel)
+
+1. Go to [vercel.com](https://vercel.com)
+2. Click **New Project** → Import this repo
+3. Add environment variables:
+
+| Variable | Description | Example |
+|---|---|---|
+| `VITE_BACKEND_URL` | Your Railway URL | `https://hermarket.up.railway.app` |
+| `VITE_TWILIO_NUMBER` | Twilio sandbox number | `+14155238886` |
+| `VITE_SANDBOX_CODE` | Your sandbox join code | `silver-elephant` |
+
+4. Click **Deploy**
+
+---
 
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/webhook` | Twilio WhatsApp webhook — receives messages + images, generates AI listings |
-| `GET` | `/listings` | Returns all listings |
-| `POST` | `/approve/:id` | Approves a pending listing |
-| `DELETE` | `/listing/:id` | Deletes a listing |
+| `GET` | `/` | Health check |
+| `GET` | `/listings` | Get all listings |
+| `POST` | `/webhook` | Twilio WhatsApp webhook |
+| `POST` | `/approve/:id` | Approve a pending listing |
+| `DELETE` | `/listing/:id` | Delete a listing |
 
-## How It Works
+---
 
-1. **Artisan sends a WhatsApp message** with a product photo and description
-2. **Claude AI analyzes** the message and image, generating a structured listing
-3. **Listing appears in Admin panel** as pending for review
-4. **Admin approves** → listing goes live in the Shop
-5. **Buyers browse and order** directly from the marketplace
+## Features
 
-## Design System
+### 🛍 Marketplace (Shop)
+- Browse approved artisan products
+- Filter by category (Textiles, Jewelry, Spices, etc.)
+- See seller stories and origin
+- Order directly from the artisan
 
-- **Colors**: Olive green, cream, burgundy, warm-white, bark, sand
-- **Fonts**: Cormorant Garamond (headings) + Jost (body)
-- **Aesthetic**: Editorial, premium artisan
+### 📋 Admin Dashboard
+- Review pending listings from WhatsApp
+- Approve or reject with one click
+- Track live listings
+
+### 📱 Seller Onboarding
+- Step-by-step WhatsApp instructions
+- Live feed of recently listed products
+- No app download required
+
+---
+
+## Demo Flow
+
+1. Open WhatsApp → message `+1 415 523 8886` with join code
+2. Send a photo of any handmade product + a description
+3. Receive an AI-generated listing reply in seconds
+4. Go to the Admin tab → approve the listing
+5. See it live on the Shop! 🌿
+
+---
+
+## Team
+
+Built at **Global Hacks** — March 2026
+
+- Harnoor Sagar
+- Erjona Kalari
+- Zain Al-Sakaji
+- Zain Khalbous
+
+---
 
 ## License
 
