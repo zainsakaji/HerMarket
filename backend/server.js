@@ -57,9 +57,7 @@ function writeListings(listings) {
 
 app.get("/", (req, res) => res.json({ status: "HerMarket backend running ✅" }));
 
-app.get("/listings", (req, res) => {
-  res.json(readListings());
-});
+app.get("/listings", (req, res) => res.json(readListings()));
 
 app.post("/approve/:id", (req, res) => {
   const listings = readListings();
@@ -86,7 +84,7 @@ app.post("/webhook", async (req, res) => {
 
   const systemPrompt = `
 You are a marketplace listing assistant for rural artisan women selling handmade goods globally.
-Return EXACT JSON in this format:
+Return EXACT JSON ONLY in this format:
 {
   "title": "short product title max 8 words",
   "description": "Two compelling sentences highlighting craftsmanship and origin",
@@ -98,12 +96,9 @@ Return EXACT JSON in this format:
 Tags must be chosen from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Home Decor, Food, Handmade, Organic, Silver, Cotton, Wool, Winter.
 `;
 
-  const userPrompt = `Seller message: "${body}"
-${mediaUrl ? "Product image: " + mediaUrl : "No image provided."}`;
+  const userPrompt = `Seller message: "${body}" ${mediaUrl ? "Image URL: " + mediaUrl : "No image provided."}`;
 
   try {
-    let rawText;
-
     const response = await axios.post(
       "https://openrouter.ai/v1/chat/completions",
       {
@@ -112,7 +107,8 @@ ${mediaUrl ? "Product image: " + mediaUrl : "No image provided."}`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.7
+        temperature: 0.7,
+        max_tokens: 500
       },
       {
         headers: {
@@ -122,27 +118,19 @@ ${mediaUrl ? "Product image: " + mediaUrl : "No image provided."}`;
       }
     );
 
-    // Safe extraction
-    if (response.data && response.data.choices && response.data.choices.length > 0) {
-      rawText = response.data.choices[0].message.content;
-    } else {
-      console.warn("⚠️ OpenRouter response missing choices, using fallback");
-      rawText = JSON.stringify({
-        title: "Handmade Artisan Product",
-        description: body || "A beautiful handmade item crafted with care.",
-        tags: ["Handmade"],
-        price: 20,
-        origin: "Unknown",
-        sellerNote: "Made with love by hand."
-      });
-    }
+    let rawText = response.data.choices?.[0]?.message?.content || "";
 
-    // Parse AI output safely
+    // Extract JSON from AI response safely
     let parsed;
     try {
-      const clean = rawText.replace(/```json|```/g, "").trim();
-      parsed = JSON.parse(clean);
+      const match = rawText.match(/\{[\s\S]*\}/);
+      if (match) {
+        parsed = JSON.parse(match[0]);
+      } else {
+        throw new Error("No JSON found in AI response");
+      }
     } catch (e) {
+      console.warn("⚠️ Failed to parse AI output, using fallback");
       parsed = {
         title: "Handmade Artisan Product",
         description: body || "A beautiful handmade item crafted with care.",
