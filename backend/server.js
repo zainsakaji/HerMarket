@@ -95,7 +95,7 @@ app.post("/webhook", async (req, res) => {
   console.log(`📱 Message from ${from}: "${body}" | Image: ${mediaUrl}`);
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
     const parts = [];
 
     if (mediaUrl) {
