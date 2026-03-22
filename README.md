@@ -81,7 +81,7 @@ HerMarket/
 - Node.js 20+
 - Twilio account
 - OpenRouter API key
-- Railway account (backend)
+- Railway account (backend) 
 - Vercel account (frontend)
 
 ---
