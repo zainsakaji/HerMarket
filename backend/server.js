@@ -16,21 +16,33 @@ const LISTINGS_FILE = path.join(__dirname, "listings.json");
 
 const SEED_LISTINGS = [
   {
-    id: "1", approved: true, seller: "Priya Sharma", timestamp: new Date().toISOString(),
+    id: "1",
+    approved: true,
+    seller: "Priya Sharma",
+    timestamp: new Date().toISOString(),
     title: "Hand-Block Printed Cotton Scarf",
-    description: "Crafted using century-old wooden stamps and natural indigo dye. Each piece carries the heritage of Rajasthan's artisan tradition.",
-    tags: ["Textiles", "Cotton", "Handmade"], price: 28, origin: "Jaipur, India",
+    description:
+      "Crafted using century-old wooden stamps and natural indigo dye. Each piece carries the heritage of Rajasthan's artisan tradition.",
+    tags: ["Textiles", "Cotton", "Handmade"],
+    price: 28,
+    origin: "Jaipur, India",
     sellerNote: "My mother taught me this craft — every stamp tells a story.",
     image: "https://images.unsplash.com/photo-1617627143233-ab93a9b37a1e?w=600",
   },
   {
-    id: "2", approved: true, seller: "Meena Devi", timestamp: new Date().toISOString(),
+    id: "2",
+    approved: true,
+    seller: "Meena Devi",
+    timestamp: new Date().toISOString(),
     title: "Embroidered Cushion Cover",
-    description: "Dense mirror-work embroidery on ivory cotton. Takes 3 days per piece.",
-    tags: ["Embroidery", "Textiles", "Home Decor"], price: 22, origin: "Jaipur, India",
+    description:
+      "Dense mirror-work embroidery on ivory cotton. Takes 3 days per piece.",
+    tags: ["Embroidery", "Textiles", "Home Decor"],
+    price: 22,
+    origin: "Jaipur, India",
     sellerNote: "I learned this stitch from my grandmother as a young girl.",
     image: "https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=600",
-  }
+  },
 ];
 
 function readListings() {
@@ -78,7 +90,9 @@ app.post("/webhook", async (req, res) => {
 You are a marketplace listing assistant for rural artisan women selling handmade goods globally.
 
 The seller sent this message: "${body || "No description provided"}"
-${mediaUrl ? "Analyze the product image carefully." : "No image was provided."}
+${
+  mediaUrl ? "Analyze the product image carefully." : "No image was provided."
+}
 
 Generate a product listing. Return ONLY this exact JSON:
 {
@@ -94,52 +108,56 @@ Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Hom
 `;
 
   try {
+    // Declare rawText ONCE
     let rawText;
+
     const response = await axios.post(
       "https://openrouter.ai/v1/chat/completions",
       {
         model: "deepseek/deepseek-chat:free",
         messages: [
-          { role: "user", content: mediaUrl ? `${prompt}\n\nImage URL: ${mediaUrl}` : prompt }
-        ]
+          {
+            role: "user",
+            content: mediaUrl ? `${prompt}\n\nImage URL: ${mediaUrl}` : prompt,
+          },
+        ],
       },
       {
         headers: {
-          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json"
-        }
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+        },
       }
     );
 
-let rawText;
+    // Safely extract AI response
+    if (response.data && response.data.choices && response.data.choices.length > 0) {
+      rawText = response.data.choices[0].message.content;
+    } else {
+      console.warn("⚠️ OpenRouter response missing choices, using fallback");
+      rawText = JSON.stringify({
+        title: "Handmade Artisan Product",
+        description: body || "A beautiful handmade item crafted with care.",
+        tags: ["Handmade"],
+        price: 20,
+        origin: "Unknown",
+        sellerNote: "Made with love by hand.",
+      });
+    }
 
-// Safely extract content
-if (response.data && response.data.choices && response.data.choices.length > 0) {
-  rawText = response.data.choices[0].message.content;
-} else {
-  console.warn("⚠️ OpenRouter response missing choices, using fallback");
-  rawText = JSON.stringify({
-    title: "Handmade Artisan Product",
-    description: body || "A beautiful handmade item crafted with care.",
-    tags: ["Handmade"],
-    price: 20,
-    origin: "Unknown",
-    sellerNote: "Made with love by hand."
-  });
-}
+    // Parse the AI output safely
     let parsed;
     try {
       const clean = rawText.replace(/```json|```/g, "").trim();
       parsed = JSON.parse(clean);
     } catch (e) {
-      console.log("⚠️ AI failed, using fallback");
       parsed = {
         title: "Handmade Artisan Product",
         description: body || "A beautiful handmade item crafted with care.",
         tags: ["Handmade"],
         price: 20,
         origin: "Unknown",
-        sellerNote: "Made with love by hand."
+        sellerNote: "Made with love by hand.",
       };
     }
 
@@ -155,7 +173,7 @@ if (response.data && response.data.choices && response.data.choices.length > 0) 
       approved: false,
       seller: "WhatsApp Seller",
       phone: from,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     const listings = readListings();
