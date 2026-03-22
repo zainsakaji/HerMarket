@@ -3,7 +3,6 @@ const express = require("express");
 const cors = require("cors");
 const twilio = require("twilio");
 const axios = require("axios");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { v4: uuidv4 } = require("uuid");
 const fs = require("fs");
 const path = require("path");
@@ -13,7 +12,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const LISTINGS_FILE = path.join(__dirname, "listings.json");
 
 const SEED_LISTINGS = [
@@ -95,30 +93,14 @@ app.post("/webhook", async (req, res) => {
   console.log(`📱 Message from ${from}: "${body}" | Image: ${mediaUrl}`);
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-    const parts = [];
-
-    if (mediaUrl) {
-      console.log("🖼 Downloading image from Twilio...");
-      const imageResponse = await axios.get(mediaUrl, {
-        responseType: "arraybuffer",
-        auth: {
-          username: process.env.TWILIO_ACCOUNT_SID,
-          password: process.env.TWILIO_AUTH_TOKEN,
-        },
-      });
-      const base64Image = Buffer.from(imageResponse.data).toString("base64");
-      const contentType = imageResponse.headers["content-type"] || "image/jpeg";
-      parts.push({ inlineData: { mimeType: contentType, data: base64Image } });
-    }
-
-    parts.push({
-      text: `You are a marketplace listing assistant for rural artisan women selling handmade goods globally.
+    // Prepare prompt
+    const prompt = `
+You are a marketplace listing assistant for rural artisan women selling handmade goods globally.
 
 The seller sent this message: "${body || "No description provided"}"
 ${mediaUrl ? "Analyze the product image carefully." : "No image was provided."}
 
-Generate a product listing. Return ONLY this exact JSON with no markdown, no explanation:
+Generate a product listing. Return ONLY this exact JSON:
 {
   "title": "short product title max 8 words",
   "description": "Two compelling sentences for international buyers that highlight craftsmanship and origin.",
@@ -128,15 +110,70 @@ Generate a product listing. Return ONLY this exact JSON with no markdown, no exp
   "sellerNote": "One warm sentence in first person from the seller about how they made this."
 }
 
-Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Home Decor, Food, Handmade, Organic, Silver, Cotton, Wool, Winter`
-    });
+Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Home Decor, Food, Handmade, Organic, Silver, Cotton, Wool, Winter
+`;
 
-    console.log("🤖 Calling Gemini API...");
-    const result = await model.generateContent(parts);
-    const rawText = result.response.text();
-    const clean = rawText.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
+    // Call OpenRouter via axios
+    let rawText;
 
+    if (mediaUrl) {
+      // For simplicity, we'll just include the image URL as text
+      rawText = (
+        await axios.post(
+          "https://openrouter.ai/api/v1/chat/completions",
+          {
+            model: "deepseek/deepseek-chat:free",
+            messages: [
+              {
+                role: "user",
+                content: `${prompt}\n\nImage URL: ${mediaUrl}`
+              }
+            ]
+          },
+          {
+            headers: {
+              "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              "Content-Type": "application/json"
+            }
+          }
+        )
+      ).data.choices[0].message.content;
+    } else {
+      rawText = (
+        await axios.post(
+          "https://openrouter.ai/api/v1/chat/completions",
+          {
+            model: "deepseek/deepseek-chat:free",
+            messages: [{ role: "user", content: prompt }]
+          },
+          {
+            headers: {
+              "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              "Content-Type": "application/json"
+            }
+          }
+        )
+      ).data.choices[0].message.content;
+    }
+
+    // Parse JSON safely
+    let parsed;
+    try {
+      const clean = rawText.replace(/```json|```/g, "").trim();
+      parsed = JSON.parse(clean);
+    } catch (e) {
+      console.log("⚠️ AI failed, using fallback");
+      parsed = {
+        title: "Handmade Artisan Product",
+        description: body || "A beautiful handmade item crafted with care.",
+        tags: ["Handmade"],
+        price: 20,
+        origin: "Unknown",
+        sellerNote: "Made with love by hand."
+      };
+    }
+
+    // Save listing
     const newListing = {
       id: uuidv4(),
       title: parsed.title,
