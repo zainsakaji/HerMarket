@@ -1,10 +1,10 @@
 # HerMarket 🌿
 
-> AI-powered cooperative marketplace connecting rural women artisans directly to global buyers — no middlemen, fair prices, real impact.
+> AI-powered cooperative marketplace connecting rural women artisans directly to global buyers, no middlemen, fair prices, real impact.
 
 ## The Problem
 
-Rural women in India, Bangladesh, Kenya, Nepal and beyond produce beautiful handmade goods — textiles, embroidery, baskets, spices, jewelry, clothing. But middlemen buy their products for almost nothing and resell for 10–50× the price in cities or online.
+Rural women in India, Bangladesh, Kenya, Nepal and beyond produce beautiful handmade goods: textiles, embroidery, baskets, spices, jewelry, clothing. But middlemen buy their products for almost nothing and resell for 10–50× the price in cities or online.
 
 The women already have the skills. They just lack:
 - Market access
