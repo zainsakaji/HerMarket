@@ -111,8 +111,22 @@ Tags must be from: Textiles, Embroidery, Baskets, Spices, Jewelry, Clothing, Hom
       }
     );
 
-    rawText = response.data.choices[0].message.content;
+let rawText;
 
+// Safely extract content
+if (response.data && response.data.choices && response.data.choices.length > 0) {
+  rawText = response.data.choices[0].message.content;
+} else {
+  console.warn("⚠️ OpenRouter response missing choices, using fallback");
+  rawText = JSON.stringify({
+    title: "Handmade Artisan Product",
+    description: body || "A beautiful handmade item crafted with care.",
+    tags: ["Handmade"],
+    price: 20,
+    origin: "Unknown",
+    sellerNote: "Made with love by hand."
+  });
+}
     let parsed;
     try {
       const clean = rawText.replace(/```json|```/g, "").trim();
